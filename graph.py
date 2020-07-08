@@ -47,7 +47,6 @@ class Graph:
     #types in edgeTypes in the given order
     # e.g. if edgeTypes holds ['parent', 'sibling'], tests if destination is source's parent's sibling
     def hasRelationship(self, edgeTypes, source, destination):
-        print("source is {}".format(source.name))
         #if neither source nor destination is connected to any other nodes (e.g. no relationships), return early
         if source not in self.graph:
             return false
@@ -58,8 +57,8 @@ class Graph:
             #see if edge connects source with another node with relationship edgeTypes[0]
             if edgeTypes[0].find("-") != -1:
                 #if relationship in edgeTypes[0] has a preceding -, relationship must go from source to destination
-                if edgeTypes[0] == edge.relationshipIdentifier and edge.left.name == source.name:
-                    #if we are on the last edge identifier, see if edgeTypes[0] is same as destination's type
+                if edgeTypes[0][1:] == edge.relationshipIdentifier and edge.left.name == source.name:
+                    #if we are on the last edge in the list, check if destination node matches
                     if len(edgeTypes) == 1:
                         if(edge.right.name == destination.name):
                             return True
@@ -71,7 +70,7 @@ class Graph:
             else:
                 #if no preceding - in edgeTypes[0], relationship must got from destination to source
                 if edgeTypes[0] == edge.relationshipIdentifier and edge.right.name == source.name:
-                    #if we are on the last edge identifier, see if edgeTypes[0] is same as destination's type
+                    #if we are on the last edge in the list, check if destination node matches
                     if len(edgeTypes) == 1:
                         if(edge.left.name == destination.name):
                             return True
