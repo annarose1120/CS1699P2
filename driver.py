@@ -1,15 +1,17 @@
 import re
-from statements import relationshipStatement
+from statements import RelationshipStatement, DelegationStatement, Policy
 syntaxErrorString = "Syntax error in policy file"
 
 def main():
     #preprocess the policy file
     #READ IN JSON TO DICT
-    ret = parseRelationshipStatement("!<friend><-parent><-parent>a(r)")
-    ret.printStatement()
+    #ret = parseRelationshipStatement("!<friend><-parent><-parent>a(r)")
+    #ret.printStatement()
+    ret = processPolicy("!<friend><-parent><-parent>a(rw)|T(r)|$(<friend>a)")
+    ret.printPolicy()
 
-#takes a string representation of a policy and returns an array of statement objects
-#that represent that policy
+
+#takes a string representation of a policy and returns a policy object to represent it
 #checks syntax along the way, raises errors if improper syntax
 def processPolicy(policy):
     #to hold to array of statement objects
@@ -20,6 +22,14 @@ def processPolicy(policy):
     numOr = policy.count("|")
     if len(statements) != numOr + 1:
         raise SyntaxError(syntaxErrorString)
+    for statement in statements:
+        if statement[0] == "$":
+            resultArray.append(parseDelegationStatement(statement))
+        else:
+            resultArray.append(parseRelationshipStatement(statement))
+    newPolicy = Policy(resultArray)
+    return newPolicy
+
 
 #takes an individual relationship statement, parses it,
 #and returns a corresponding relationshipStatement object
@@ -45,13 +55,13 @@ def parseRelationshipStatement(statement):
 
     #special cases
     if statement == "a":
-        return relationshipStatement(owner = True, everyone = False, negation = False, permissions = permissions)
+        return RelationshipStatement(owner = True, everyone = False, negation = False, permissions = permissions)
 
     elif statement == "!a":
-        return relationshipStatement(owner = True, everyone = False, negation = True, permissions = permissions)
+        return RelationshipStatement(owner = True, everyone = False, negation = True, permissions = permissions)
 
     elif statement == "T":
-        return relationshipStatement(owner = False, everyone = True, negation = False, permissions = permissions)
+        return RelationshipStatement(owner = False, everyone = True, negation = False, permissions = permissions)
 
     #for longer statements
     #process and remove ! at beginning, if applicable
@@ -76,9 +86,34 @@ def parseRelationshipStatement(statement):
     #ex. <friend><parent><sibling> => ["friend", "parent", "sibling"]
     matches = re.findall("<-?\w+>", statement)
     matches = [match[1:len(match) - 1] for match in matches]
-    return relationshipStatement(owner = False, everyone = False, negation = negation, labels = matches, permissions = permissions)
+    return RelationshipStatement(owner = False, everyone = False, negation = negation, labels = matches, permissions = permissions)
 
+#takes a string representation of a delegation statement, parses it,
+#returns a corresponding DelegationStatement object
+def parseDelegationStatement(statement):
 
+    #make sure delegation statement starts with $( and ends with )
+    #remove these characters so we end up with a RelationshipStatement object
+    if statement[0] != "$":
+        raise SyntaxError(syntaxErrorString)
+    else:
+        statement = statement[1:]
+    if statement[0] != "(":
+        raise SyntaxError(syntaxErrorString)
+    else:
+        statement = statement[1:]
+    if statement[len(statement) - 1] != ")":
+        raise SyntaxError(syntaxErrorString)
+    else:
+        statement = statement[:len(statement) - 1]
+
+    #TODO: make sure there is no permissions argument!!
+    if re.search("^(!?(<-?\w+>)*a|T)$", statement) is None:
+        raise SyntaxError(syntaxErrorString)
+
+    #what is left should be a relationship statement
+    relationshipStatement = parseRelationshipStatement(statement)
+    return DelegationStatement(relationshipStatement)
 
 
 

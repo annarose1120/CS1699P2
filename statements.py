@@ -1,7 +1,7 @@
 #to represent the processed form of a relationship statement from the policy file
 #Ex. processed form of <friend><parent>a(rwx)
 #syntax must have been verified beforehand
-class relationshipStatement:
+class RelationshipStatement:
     #owner =boolean, whether or not relationship is either "a" or "!a"
     #everyone = boolean, whether or not relationship is "T"
     #negation = boolean, whether or not relationship begins with !
@@ -28,16 +28,29 @@ class relationshipStatement:
 
 #to represent to processed form of a delegation statement
 #to represent processed form of $(<parent>a)
-class delegationStatement:
+class DelegationStatement:
     def __init__(self, relationship):
+        if not isinstance(relationship, RelationshipStatement):
+            raise Error("Delegation class given wrong object type")
         self.relationship = relationship
 
     def printStatement(self):
         self.relationship.printStatement()
 
-class policy:
+class Policy:
     def __init__(self, statements):
         for statement in statements:
-            if not (isinstance(statement, relationshipStatement) or isinstance(statement, delegationStatement)):
-                raise Error("policy class given wrong type of objects")
+            if not (isinstance(statement, RelationshipStatement) or isinstance(statement, DelegationStatement)):
+                raise Error("Policy class given wrong object type")
         self.statements = statements
+
+    def printPolicy(self):
+        for statement in self.statements:
+            if(isinstance(statement, RelationshipStatement)):
+                print("Relationship Statement\n-----------")
+                statement.printStatement()
+            else:
+                print("Delegation Statement\n------------")
+                statement.printStatement()
+
+            print("\nOR\n")
