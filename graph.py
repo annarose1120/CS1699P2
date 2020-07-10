@@ -1,4 +1,6 @@
 #represents a relationship between two people(nodes)
+#relationship goes from left to right (subject to object)
+#Ex. if the relationship is parent, left is the parent of right
 class Edge:
   def __init__(self, id, node1, node2):
     self.relationshipIdentifier = id
@@ -14,7 +16,7 @@ class Node:
 #graph is stored as a mapping of nodes to a list of edges
 class Graph:
     def __init__(self):
-        self.graph = {}      #maps Nodes to a list of edges
+        self.graph = {}
 
     #prints the status of the graph
     def printGraph(self):
@@ -23,6 +25,7 @@ class Graph:
             for edge in self.graph[key]:
                 print("({}, {}, {})".format(edge.relationshipIdentifier, edge.left.name, edge.right.name), end = "")
             print("\n")
+
     #add a new edge to the graph
     #indicates that node1 is has relationship <relationshipIdentifier> with node2
     #and node2 has relationship -<relationshipIdentifier> with node1
@@ -43,8 +46,7 @@ class Graph:
         edges.append(Edge(relationshipIdentifier, node1, node2))
         self.graph[node2] = edges
 
-    #tests whether source is connected with destination using the relationship
-    #types in edgeTypes in the given order
+    #tests whether source is connected with destination using sequence of relationships in edgeTypes
     # e.g. if edgeTypes holds ['parent', 'sibling'], tests if destination is source's parent's sibling
     def hasRelationship(self, edgeTypes, source, destination):
         #if neither source nor destination is connected to any other nodes (e.g. no relationships), return early
@@ -56,7 +58,7 @@ class Graph:
         for edge in self.graph[source]:
             #see if edge connects source with another node with relationship edgeTypes[0]
             if edgeTypes[0].find("-") != -1:
-                #if relationship in edgeTypes[0] has a preceding -, relationship must go from source to destination
+                #if relationship in edgeTypes[0] has a preceding -, relationship must go from source to another node
                 if edgeTypes[0][1:] == edge.relationshipIdentifier and edge.left.name == source.name:
                     #if we are on the last edge in the list, check if destination node matches
                     if len(edgeTypes) == 1:
@@ -68,7 +70,7 @@ class Graph:
                         if result:
                             return result
             else:
-                #if no preceding - in edgeTypes[0], relationship must got from destination to source
+                #if no preceding - in edgeTypes[0], relationship must go from another node to source
                 if edgeTypes[0] == edge.relationshipIdentifier and edge.right.name == source.name:
                     #if we are on the last edge in the list, check if destination node matches
                     if len(edgeTypes) == 1:
