@@ -1,15 +1,64 @@
-import re
+import re, json, sys
 from statements import RelationshipStatement, DelegationStatement, Policy
+from graph import Node, Edge, Graph
+
 syntaxErrorString = "Syntax error in policy file"
 
 def main():
     #preprocess the policy file
-    #READ IN JSON TO DICT
+    #COMMAND LINE ARG =>policy file
+    #read in policy file, turn into a dict
+    try:
+        policyFile = open("temp.json", "r")
+        fileDict = json.load(policyFile)
+
+    except ValueError as e:
+        print("Error decoding policy file: ")
+        print(e)
+        sys.exit(0)
+
+    #process relationships
+    socialNetwork = buildSocialNetwork(fileDict["relationships"])
+    socialNetwork.printGraph()
+
     #ret = parseRelationshipStatement("!<friend><-parent><-parent>a(r)")
     #ret.printStatement()
-    ret = processPolicy("!<friend><-parent><-parent>a(rw)|T(r)|$(<friend>a)")
-    ret.printPolicy()
+    #ret = processPolicy("!<friend><-parent><-parent>a(rw)|T(r)|$(<friend>a)")
+    #ret.printPolicy()
 
+#turns the relationship dictionary from the policy file into a social network graph
+def buildSocialNetwork(relationships):
+    socialNetwork = Graph()
+    nodes = {}                  #all people seen so far, maps string name to their node
+                                #to avoid duplicate Nodes
+
+    #turn each relationship into an edge in the social network graph
+    for key in relationships:
+        relationshipArr = relationships[key]
+        for relationship in relationshipArr:
+            individuals = relationship.split(",")
+
+            #remove leading and trailing whitespace around names
+            individuals[0] = individuals[0].lstrip().rstrip()
+            individuals[1] = individuals[1].lstrip().rstrip()
+
+            #check if a node has been made for each person in this relationship
+            #if not, make a new one
+            if individuals[0] in nodes:
+                left = nodes[individuals[0]]
+            else:
+                left = Node(individuals[0])
+                nodes[individuals[0]] = left
+
+            if individuals[1] in nodes:
+                right = nodes[individuals[1]]
+            else:
+                right = Node(individuals[1])
+                nodes[individuals[1]] = right
+
+            socialNetwork.addEdge(key, left, right)
+
+    return socialNetwork
 
 #takes a string representation of a policy and returns a policy object to represent it
 #checks syntax along the way, raises errors if improper syntax
