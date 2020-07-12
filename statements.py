@@ -31,7 +31,7 @@ class RelationshipStatement:
 class DelegationStatement:
     def __init__(self, relationship):
         if not isinstance(relationship, RelationshipStatement):
-            raise Error("Delegation class given wrong object type")
+            raise TypeError("Delegation class constructor must be given a RelationshipStatement")
         self.relationship = relationship
 
     def printStatement(self):
@@ -41,7 +41,7 @@ class Policy:
     def __init__(self, statements):
         for statement in statements:
             if not (isinstance(statement, RelationshipStatement) or isinstance(statement, DelegationStatement)):
-                raise Error("Policy class given wrong object type")
+                raise TypeError("Policy class constructor must be passed an array of RelationshipStatement and DelegationStatement")
         self.statements = statements
 
     def printPolicy(self):

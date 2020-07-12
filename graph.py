@@ -49,11 +49,13 @@ class Graph:
     #tests whether source is connected with destination using sequence of relationships in edgeTypes
     # e.g. if edgeTypes holds ['parent', 'sibling'], tests if destination is source's parent's sibling
     def hasRelationship(self, edgeTypes, source, destination):
+        if type(source) is not Node or type(destination) is not Node:
+            raise TypeError("hasRelationship method in class Graph must be passed Node objects for source and destination")
         #if neither source nor destination is connected to any other nodes (e.g. no relationships), return early
         if source not in self.graph:
-            return false
+            return False
         if destination not in self.graph:
-            return false
+            return False
 
         for edge in self.graph[source]:
             #see if edge connects source with another node with relationship edgeTypes[0]
