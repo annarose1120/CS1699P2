@@ -57,9 +57,13 @@ def hasAccess(resource, accessor, permission, socialNetwork, resources, nodes):
         elif statement.owner and not statement.negation:
             if owner == accessor :
                 return True #a()
+            else:
+                continue
         elif statement.owner and statement.negation:
             if owner != accessor:
-                return True# !a()
+                return True# !a
+            else:
+                continue
 
         #evaluate relationship of owner and accessor
         ownerNode = nodes[owner]
