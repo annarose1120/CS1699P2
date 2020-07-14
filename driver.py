@@ -16,6 +16,9 @@ def main():
         print(e)
         sys.exit(0)
 
+    #grab the dict that maps characters to the permission they represent
+    permissions = fileDict["permission types"]
+
     #process relationships
     socialNetwork, nodes = buildSocialNetwork(fileDict["relationships"])
 
@@ -26,8 +29,14 @@ def main():
         policy = resource["policy"]
         resource["policy"] = processPolicy(policy)
 
-    #grab the dict that maps characters to the permission they represent
-    permissions = fileDict["permission types"]
+    #process delegations
+    processDelegations(resources, socialNetwork, nodes, permissions)
+
+
+
+
+
+
 
     while(True):
         print("Resource: ", end = "")
@@ -37,6 +46,54 @@ def main():
         print("Permission: ", end = "")
         perm = input().strip()
         print(hasAccess(obj, accessor, perm, socialNetwork, resources, nodes))
+
+# Processes the delegations for each resource. If a delegation is valid, it is turned into
+# a corresponding relationship statement and appended to the policy for the given resource
+# A delegation is valid iff
+#   -there there is a delegation statement in the policy that allows a granter to delegate
+#   -the granter is delegating permissions that they actually have
+def processDelegations(resources, socialNetwork, nodes, permissions):
+    for resource in resources:
+        #if delegations exist for this resource, process them. otherwise skip this resource
+        if "delegations" not in resources[resource]:
+            continue
+
+        #retrieve the delegations dict and owner for this resource
+        delegations = resources[resource]["delegations"]
+        owner = resources[resource]["owner"]
+
+        for granter in delegations:
+            policy = resources[resource]["policy"]
+
+            #check all delegation statements in this policy, see if any connect owner to granter
+            for statement in policy.statements:
+                if type(statement) is DelegationStatement:
+                    relationshipStatement = statement.relationship
+                    ret = relatedVia(relationshipStatement, owner, granter, socialNetwork, nodes)
+
+                    #if accessor isnt related to owner in this way, move on to
+                    #next delegation statement in resource's policy
+                    if not ret:
+                        continue
+
+                    #make sure granter actually has the permissions they are trying to delegate
+                    perms = delegations[granter]["permissions"]
+                    for c in perms:
+                        #make sure permission exists in permission dict
+                        if c not in permissions:
+                            errorString = "Nonexistent permission used in delegation statement: " + c
+                            raise SyntaxError(errorString)
+
+                        #make sure granter has this permission
+                        if not hasAccess(resource, granter, c, socialNetwork, resources, nodes):
+                            errorString = "Permissions cannot be delegated by individuals without permissions in question\n"
+                            errorString = errorString + "{} attempted to delegate {} permission for resource {}".format(granter, c, resource)
+                            raise Error(errorString)
+
+                    #ok to delegate, create new relationship statement and append to policy
+                    #add permissions as part of relationship string. dumb fix
+                    delegates = delegations[granter]["delegates"] + "({})".format(perms)
+                    policy.statements.append(parseRelationshipStatement(delegates, False))
 
 #answers the question "does accessor have access to resource with permission"
 #ex. hasAccess("file.txt", "Alice", "r") answers whether Alice has read permission for file.txt
@@ -51,32 +108,39 @@ def hasAccess(resource, accessor, permission, socialNetwork, resources, nodes):
         #check whether this statement can even grant the wanted permission
         if statement.permissions.find(permission) == -1:
             continue
-        #check special cases for relationship statement
-        if statement.everyone:
-            return True #T()
-        elif statement.owner and not statement.negation:
-            if owner == accessor :
-                return True #a()
-            else:
-                continue
-        elif statement.owner and statement.negation:
-            if owner != accessor:
-                return True# !a
-            else:
-                continue
-
-        #evaluate relationship of owner and accessor
-        ownerNode = nodes[owner]
-        accessorNode = nodes[accessor]
-        ret = socialNetwork.hasRelationship(statement.labels, ownerNode, accessorNode)
-
-        if statement.negation:
-            ret = not ret
-        if ret:
-            return True
+        #check whether this relationship connects owner to accessor
+        related = relatedVia(statement, owner, accessor, socialNetwork, nodes)
+        if related:
+             return True
     return False
 
+#determines whether owner is related to accessor via relationshipStatement
+def relatedVia(statement, owner, accessor, socialNetwork, nodes):
+    #check special cases for relationship statement
+    if statement.everyone:
+        return True #T
+    elif statement.owner and not statement.negation:
+        if owner == accessor :
+            return True #a
+        else:
+            return False
+    elif statement.owner and statement.negation:
+        if owner != accessor:
+            return True# !a
+        else:
+            return False
 
+    #evaluate relationship of owner and accessor
+    if owner not in nodes or accessor not in nodes:
+        return False
+    ownerNode = nodes[owner]
+    accessorNode = nodes[accessor]
+    ret = socialNetwork.hasRelationship(statement.labels, ownerNode, accessorNode)
+
+    if statement.negation:
+        ret = not ret
+
+    return ret
 
 #turns the relationship dictionary from the policy file into a social network graph
 def buildSocialNetwork(relationships):

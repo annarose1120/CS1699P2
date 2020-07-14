@@ -51,6 +51,7 @@ class Graph:
     def hasRelationship(self, edgeTypes, source, destination):
         if type(source) is not Node or type(destination) is not Node:
             raise TypeError("hasRelationship method in class Graph must be passed Node objects for source and destination")
+
         #if neither source nor destination is connected to any other nodes (e.g. no relationships), return early
         if source not in self.graph:
             return False
