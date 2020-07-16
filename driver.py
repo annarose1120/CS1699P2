@@ -1,12 +1,8 @@
 import re, json, sys
-from statements import RelationshipStatement, DelegationStatement, Policy
+from statements import RelationshipStatement, DelegationStatement, Policy, Delegation
 from graph import Node, Edge, Graph
 
-
 def main():
-    #preprocess the policy file
-    #COMMAND LINE ARG =>policy file
-    #read in policy file, turn into a dict
     try:
         policyFile = open("temp.json", "r")
         fileDict = json.load(policyFile)
@@ -29,14 +25,9 @@ def main():
         policy = resource["policy"]
         resource["policy"] = processPolicy(policy)
 
-    #process delegations
+    #process delegations. valid delegations turned into Delegation objects and
+    #appended to the policy object for the given resource
     processDelegations(resources, socialNetwork, nodes, permissions)
-
-
-
-
-
-
 
     while(True):
         print("Resource: ", end = "")
@@ -48,73 +39,100 @@ def main():
         print(hasAccess(obj, accessor, perm, socialNetwork, resources, nodes))
 
 # Processes the delegations for each resource. If a delegation is valid, it is turned into
-# a corresponding relationship statement and appended to the policy for the given resource
+# a Delegation object and appended to the policy object of the resource in question
 # A delegation is valid iff
-#   -there there is a delegation statement in the policy that allows a granter to delegate
-#   -the granter is delegating permissions that they actually have
+#   -there there is a delegation statement in the policy that allows a delegator to delegate
+#   -the delegator is delegating permissions that they actually have
 def processDelegations(resources, socialNetwork, nodes, permissions):
     for resource in resources:
         #if delegations exist for this resource, process them. otherwise skip this resource
         if "delegations" not in resources[resource]:
             continue
 
-        #retrieve the delegations dict and owner for this resource
         delegations = resources[resource]["delegations"]
         owner = resources[resource]["owner"]
+        policy = resources[resource]["policy"]
 
-        for granter in delegations:
-            policy = resources[resource]["policy"]
-
-            #check all delegation statements in this policy, see if any connect owner to granter
+        for delegator in delegations:
+            #check all delegation statements in this policy, see if any connect owner to delegator,
+            #allowing delegator to delegate
             for statement in policy.statements:
                 if type(statement) is DelegationStatement:
                     relationshipStatement = statement.relationship
-                    ret = relatedVia(relationshipStatement, owner, granter, socialNetwork, nodes)
+                    ret = relatedVia(relationshipStatement, owner, delegator, socialNetwork, nodes)
 
-                    #if accessor isnt related to owner in this way, move on to
+                    #if accessor isnt related to owner via this relationship statement, move on to
                     #next delegation statement in resource's policy
                     if not ret:
                         continue
 
-                    #make sure granter actually has the permissions they are trying to delegate
-                    perms = delegations[granter]["permissions"]
+                    #make sure delegator actually has the permissions they are trying to delegate
+                    perms = re.findall("\(\w+\)", delegations[delegator]["delegates"])[0]
+                    perms = perms[1:len(perms)-1]
                     for c in perms:
+                        print("checking {} perm {}".format(delegator, c))
                         #make sure permission exists in permission dict
                         if c not in permissions:
                             errorString = "Nonexistent permission used in delegation statement: " + c
                             raise SyntaxError(errorString)
 
-                        #make sure granter has this permission
-                        if not hasAccess(resource, granter, c, socialNetwork, resources, nodes):
+                        #make sure delegator has this permission
+                        if not hasAccess(resource, delegator, c, socialNetwork, resources, nodes):
                             errorString = "Permissions cannot be delegated by individuals without permissions in question\n"
-                            errorString = errorString + "{} attempted to delegate {} permission for resource {}".format(granter, c, resource)
-                            raise Error(errorString)
+                            errorString = errorString + "{} attempted to delegate {} permission for resource {}".format(delegator, c, resource)
+                            raise SyntaxError(errorString)
 
                     #ok to delegate, create new relationship statement and append to policy
                     #add permissions as part of relationship string. dumb fix
-                    delegates = delegations[granter]["delegates"] + "({})".format(perms)
-                    policy.statements.append(parseRelationshipStatement(delegates, False))
+                    delegates = delegations[delegator]["delegates"]
+                    delegation = Delegation(parseRelationshipStatement(delegates, False), delegator)
+                    policy.statements.append(delegation)
+                    break
 
-#answers the question "does accessor have access to resource with permission"
-#ex. hasAccess("file.txt", "Alice", "r") answers whether Alice has read permission for file.txt
-#permission must be given as a character
+            #if no Delegation statements allow delegator to delegate raise Error
+            else:
+                raise SyntaxError("Invalid attempt to delegate: {} attempted to delegate for resource {}".format(delegator, resource))
+
+
+# Answers the question "does accessor have access to resource with permission"
+# ex. hasAccess("file.txt", "Alice", "r", ....) answers whether Alice has read permission for file.txt
+# social network is a graph representing the social network
+# resources is the dict of resources after replacing policy strings with policy objects during preprocessing
+# nodes is a the dict mapping string representations of individuals to corresponding Node objects
+# permission must be given as a character
 def hasAccess(resource, accessor, permission, socialNetwork, resources, nodes):
     owner = resources[resource]["owner"]
     policy = resources[resource]["policy"]
+
     for statement in policy.statements:
-        #actual delegation statements not used. turned into relationship statements during preprocessing
+        #actual delegation statements not used to determine access
+        #delegations themselves cross referenced with Delegation Statements and
+        #turned into Delegation objects during preprocessing (processDelegations method)
         if(type(statement) is DelegationStatement):
             continue
-        #check whether this statement can even grant the wanted permission
-        if statement.permissions.find(permission) == -1:
-            continue
-        #check whether this relationship connects owner to accessor
-        related = relatedVia(statement, owner, accessor, socialNetwork, nodes)
+
+        if type(statement) is RelationshipStatement:
+            #check whether this statement can even grant the wanted permission
+            if statement.permissions.find(permission) == -1:
+                continue
+
+            #check whether this relationship connects owner to accessor
+            related = relatedVia(statement, owner, accessor, socialNetwork, nodes)
+
+        if type(statement) is Delegation:
+            #check whether this statement can even grant the wanted permission
+            if statement.relationship.permissions.find(permission) == -1:
+                continue
+
+            #check whether this relationship connects delegator to accessor
+            delegator = statement.delegator
+            related = relatedVia(statement.relationship, delegator, accessor, socialNetwork, nodes)
+
         if related:
              return True
     return False
 
-#determines whether owner is related to accessor via relationshipStatement
+# Determines whether owner is related to accessor via relationshipStatement
 def relatedVia(statement, owner, accessor, socialNetwork, nodes):
     #check special cases for relationship statement
     if statement.everyone:
@@ -142,7 +160,7 @@ def relatedVia(statement, owner, accessor, socialNetwork, nodes):
 
     return ret
 
-#turns the relationship dictionary from the policy file into a social network graph
+# Turns the relationship dictionary from the policy file into a social network graph
 def buildSocialNetwork(relationships):
     if type(relationships) is not dict:
         raise TypeError("Relationships in policy file must take the form of a dictionary")
@@ -185,8 +203,8 @@ def buildSocialNetwork(relationships):
 
     return socialNetwork, nodes
 
-#takes a string representation of a policy and returns a policy object to represent it
-#checks syntax along the way, raises errors if improper syntax
+# Takes a string representation of a policy and returns a policy object to represent it
+# Checks syntax along the way, raises errors if improper syntax
 def processPolicy(policy):
     #to hold to array of statement objects
     resultArray = []
@@ -207,15 +225,15 @@ def processPolicy(policy):
     return newPolicy
 
 
-#takes an individual relationship statement, parses it,
-#and returns a corresponding relationshipStatement object
-def parseRelationshipStatement(statement, isPartOfDelegationStatement):
+# Takes an individual relationship statement, parses it,
+# and returns a corresponding relationshipStatement object
+def parseRelationshipStatement(statement, isPartOfDelegationStatement, delegator = None):
     syntaxErrorString = "Error in policy syntax. Relationship statement written incorrectly: " + statement
 
     #verify that statement takes the proper form
     if isPartOfDelegationStatement and re.search("^(!?(<-?\w+>)*a|T)$", statement) is None:
         raise SyntaxError(syntaxErrorString)
-    if (not isPartOfDelegationStatement) and re.search("^(!?(<-?\w+>)*a|T)(\(\w+\))$", statement) is None:
+    if (not isPartOfDelegationStatement) and re.search("^(!?(<-?\w+>)*(a|d)|T)(\(\w+\))$", statement) is None:
         raise SyntaxError(syntaxErrorString)
 
     #separate out permissions if applicable
@@ -247,7 +265,7 @@ def parseRelationshipStatement(statement, isPartOfDelegationStatement):
 
     #check that statement terminates with a, remove it
     length = len(statement)
-    if statement[length -1] != "a":
+    if statement[length -1] != "a" and statement[length-1] !="d" :
         raise SyntaxError(syntaxErrorString)
     else:
         statement = statement [: length - 1]
@@ -262,8 +280,8 @@ def parseRelationshipStatement(statement, isPartOfDelegationStatement):
     matches = [match[1:len(match) - 1] for match in matches]
     return RelationshipStatement(owner = False, everyone = False, negation = negation, labels = matches, permissions = permissions)
 
-#takes a string representation of a delegation statement, parses it,
-#returns a corresponding DelegationStatement object
+# Takes a string representation of a delegation statement, parses it,
+# returns a corresponding DelegationStatement object
 def parseDelegationStatement(statement):
 
     syntaxErrorString = "Error in policy syntax. Delegation statement written incorrectly: " + statement
@@ -289,8 +307,6 @@ def parseDelegationStatement(statement):
     #what is left should be a relationship statement
     relationshipStatement = parseRelationshipStatement(statement, True)
     return DelegationStatement(relationshipStatement)
-
-
 
 
 
