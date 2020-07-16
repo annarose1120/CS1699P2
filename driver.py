@@ -1,42 +1,67 @@
-import re, json, sys
+import re, json, sys, time
 from statements import RelationshipStatement, DelegationStatement, Policy, Delegation
 from graph import Node, Edge, Graph
 
 def main():
-    try:
-        policyFile = open("temp.json", "r")
-        fileDict = json.load(policyFile)
 
-    except ValueError as e:
-        print("Error decoding policy file: ")
-        print(e)
+    if len(sys.argv) != 2:
+        print("Must provide policy file")
         sys.exit(0)
 
-    #grab the dict that maps characters to the permission they represent
-    permissions = fileDict["permission types"]
+    permissions, socialNetwork, nodes, resources = preprocess(sys.argv[1])
 
-    #process relationships
-    socialNetwork, nodes = buildSocialNetwork(fileDict["relationships"])
+    queryLoop(permissions, socialNetwork, nodes, resources)
 
-    #process policies, replace with policy objects
-    resources = fileDict["resources"]
-    for key in resources:
-        resource = resources[key]
-        policy = resource["policy"]
-        resource["policy"] = processPolicy(policy)
 
-    #process delegations. valid delegations turned into Delegation objects and
-    #appended to the policy object for the given resource
-    processDelegations(resources, socialNetwork, nodes, permissions)
-
+def queryLoop(permissions, socialNetwork, nodes, resources):
+    print("Please enter the resource you want to access, the name of the accessor, and the desired permission.\n")
     while(True):
         print("Resource: ", end = "")
         obj = input().strip()
+        if obj not in resources:
+            print("{} is not an existing resource\n".format(obj))
+            continue
         print("Accessor: ", end = "")
         accessor = input().strip()
         print("Permission: ", end = "")
         perm = input().strip()
-        print(hasAccess(obj, accessor, perm, socialNetwork, resources, nodes))
+        if perm not in permissions.values():
+            print("{} is not an existing permission\n".format(perm))
+            continue
+        perm = list(permissions.keys())[list(permissions.values()).index(perm)]
+        ret = (hasAccess(obj, accessor, perm, socialNetwork, resources, nodes))
+        if(ret):
+            print("Access Granted\n")
+        else:
+            print("Access Denied\n")
+
+def preprocess(filename):
+        try:
+            policyFile = open(filename, "r")
+            fileDict = json.load(policyFile)
+
+        except ValueError as e:
+            print("Error decoding policy file: ")
+            print(e)
+            sys.exit(0)
+
+        #grab the dict that maps characters to the permission they represent
+        permissions = fileDict["permission types"]
+
+        #process relationships
+        socialNetwork, nodes = buildSocialNetwork(fileDict["relationships"])
+
+        #process policies, replace with policy objects
+        resources = fileDict["resources"]
+        for key in resources:
+            resource = resources[key]
+            policy = resource["policy"]
+            resource["policy"] = processPolicy(policy)
+
+        #process delegations. valid delegations turned into Delegation objects and
+        #appended to the policy object for the given resource
+        processDelegations(resources, socialNetwork, nodes, permissions)
+        return permissions, socialNetwork, nodes, resources
 
 # Processes the delegations for each resource. If a delegation is valid, it is turned into
 # a Delegation object and appended to the policy object of the resource in question
@@ -70,7 +95,6 @@ def processDelegations(resources, socialNetwork, nodes, permissions):
                     perms = re.findall("\(\w+\)", delegations[delegator]["delegates"])[0]
                     perms = perms[1:len(perms)-1]
                     for c in perms:
-                        print("checking {} perm {}".format(delegator, c))
                         #make sure permission exists in permission dict
                         if c not in permissions:
                             errorString = "Nonexistent permission used in delegation statement: " + c
