@@ -1,0 +1,51 @@
+{
+  "resources":{
+    "file.txt":
+      {
+        "owner": "Erin",
+        "policy" : "!<parent>a(r)|T(w)|a(x)|<parent><parent>a(x)|$(<sibling>a)|$(<friend>a)|$(a)|$(<parent>a)",
+        "delegations":{
+          "Olivia":{
+              "delegates": "<friend>d(rw)"
+            },
+          "Andrea":{
+            "delegates": "<friend>d(r)"
+          },
+          "Marie":{
+            "delegates": "<friend>d(w)"
+          },
+          "Erin":{
+            "delegates": "<friend>d(x)"
+          }
+        }
+      }
+
+  },
+
+  "relationships":
+  {
+    "parent": ["Marie, Olivia", "Marie, Erin", "Ed, Olivia", "Ed, Erin",
+                "Marie, Chrissy", "Chrissy, Riley", "Chrissy, Madison",
+                "Rose, Marie", "Matt, Riley", "Matt, Madison", "Joann, Matt",
+                "Dave, Matt", "Christine, Veronica", "Christine, Andrea"],
+
+    "sibling": ["Erin, Olivia", "Olivia, Erin", "Veronica, Andrea", "Andrea, Veronica", "Olivia, Chrissy",
+                "Chrissy, Olivia", "Chrissy, Erin", "Erin, Chrissy", "Madison, Riley",
+                "Riley, Madison"],
+
+
+    "spouse" : ["Marie, Ed", "Marie, Ed", "Chrissy, Matt", "Matt, Chrissy",
+                "Joann, Dave", "Dave, Joann"],
+
+    "friend" : ["Veronica, Olivia", "Olivia, Veronica", "Erin, Andrea", "Andrea, Erin",
+                "Christine, Marie", "Marie, Christine","Olivia, Leah", "Leah, Olivia"]
+  },
+
+  "permission types": {
+    "r": "read",
+    "w": "write",
+    "x": "execute"
+  }
+
+
+}
