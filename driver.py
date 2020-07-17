@@ -3,16 +3,18 @@ from statements import RelationshipStatement, DelegationStatement, Policy, Deleg
 from graph import Node, Edge, Graph
 
 def main():
-
+    #validate args
     if len(sys.argv) != 2:
         print("Must provide policy file")
         sys.exit(0)
 
+    #preprocess the policy file
     permissions, socialNetwork, nodes, resources = preprocess(sys.argv[1])
 
+    #begin query loop
     queryLoop(permissions, socialNetwork, nodes, resources)
 
-
+# Main query loop
 def queryLoop(permissions, socialNetwork, nodes, resources):
     print("Please enter the resource you want to access, the name of the accessor, and the desired permission.\n")
     while(True):
@@ -35,6 +37,7 @@ def queryLoop(permissions, socialNetwork, nodes, resources):
         else:
             print("Access Denied\n")
 
+#preprocesses the given policy file
 def preprocess(filename):
         try:
             policyFile = open(filename, "r")
@@ -142,6 +145,7 @@ def hasAccess(resource, accessor, permission, socialNetwork, resources, nodes):
 
             #check whether this relationship connects owner to accessor
             related = relatedVia(statement, owner, accessor, socialNetwork, nodes)
+            
 
         if type(statement) is Delegation:
             #check whether this statement can even grant the wanted permission
@@ -152,7 +156,7 @@ def hasAccess(resource, accessor, permission, socialNetwork, resources, nodes):
             delegator = statement.delegator
             related = relatedVia(statement.relationship, delegator, accessor, socialNetwork, nodes)
 
-        if related:
+        if related :
              return True
     return False
 
@@ -328,7 +332,7 @@ def parseDelegationStatement(statement):
     if re.search("^(!?(<-?\w+>)*a|T)$", statement) is None:
         raise SyntaxError(syntaxErrorString)
 
-    #what is left should be a relationship statement
+    #what is left should be a relationship statement without permissions
     relationshipStatement = parseRelationshipStatement(statement, True)
     return DelegationStatement(relationshipStatement)
 
